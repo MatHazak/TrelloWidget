@@ -9,8 +9,7 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.annotation.StringRes
 import com.github.oryanmat.trellowidget.R
 import com.rarepebble.colorpicker.ColorPreference
-import com.github.oryanmat.trellowidget.widget.updateWidgets
-import com.github.oryanmat.trellowidget.widget.updateWidgetsData
+import com.github.oryanmat.trellowidget.widget.updateAllWidgets
 import com.github.oryanmat.trellowidget.util.Constants.T_WIDGET_TAG
 import android.util.Log
 
@@ -62,8 +61,7 @@ class GeneralPreferenceFragment : PreferenceFragmentCompat() {
     override fun onPause() {
         super.onPause()
         preferenceScreen.sharedPreferences?.unregisterOnSharedPreferenceChangeListener(listener)
-        requireActivity().updateWidgets()
-        requireActivity().updateWidgetsData()
+        requireActivity().updateAllWidgets()
     }
 
     private fun setPreferenceChanges(key: String) {

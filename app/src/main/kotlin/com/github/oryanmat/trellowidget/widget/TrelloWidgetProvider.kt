@@ -44,7 +44,7 @@ class TrelloWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
 
         when (intent.action) {
-            REFRESH_ACTION -> context.notifyDataChanged(intent.getIntExtra(WIDGET_ID, 0))
+            REFRESH_ACTION -> context.updateWidgetData(intent.getIntExtra(WIDGET_ID, 0))
         }
     }
 

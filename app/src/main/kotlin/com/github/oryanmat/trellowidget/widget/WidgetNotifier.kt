@@ -6,15 +6,17 @@ import android.content.Context
 import android.content.Intent
 import com.github.oryanmat.trellowidget.R
 
-internal fun Context.updateWidgetsData() =
-        widgetManager().notifyAppWidgetViewDataChanged(getWidgetIds(), R.id.card_list)
-
-internal fun Context.updateWidgets() = sendUpdateBroadcast(*getWidgetIds())
+internal fun Context.updateAllWidgets() {
+    updateWidgetsData(*getWidgetIds())
+    sendUpdateBroadcast(*getWidgetIds())
+}
 
 internal fun Context.updateWidget(appWidgetId: Int) {
     sendUpdateBroadcast(appWidgetId)
-    notifyDataChanged(appWidgetId)
+    updateWidgetData(appWidgetId)
 }
+
+internal fun Context.updateWidgetData(appWidgetId: Int) = updateWidgetsData(appWidgetId)
 
 private fun Context.sendUpdateBroadcast(vararg appWidgetIds: Int) {
     val intent = Intent(this, TrelloWidgetProvider::class.java)
@@ -23,8 +25,8 @@ private fun Context.sendUpdateBroadcast(vararg appWidgetIds: Int) {
     sendBroadcast(intent)
 }
 
-internal fun Context.notifyDataChanged(vararg appWidgetIds: Int) =
-        widgetManager().notifyAppWidgetViewDataChanged(appWidgetIds, R.id.card_list)
+private fun Context.updateWidgetsData(vararg appWidgetIds: Int) =
+    widgetManager().notifyAppWidgetViewDataChanged(appWidgetIds, R.id.card_list)
 
 private fun Context.getWidgetIds() = widgetManager().getAppWidgetIds(trelloComponentName())
 
