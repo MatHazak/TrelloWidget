@@ -6,10 +6,16 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.StrictMode
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.github.oryanmat.trellowidget.di.AppModule
 import com.github.oryanmat.trellowidget.util.getInterval
 import com.github.oryanmat.trellowidget.widget.AlarmReceiver
-import java.util.concurrent.Executors
+import com.github.oryanmat.trellowidget.worker.WidgetUpdateWorker
+import java.util.concurrent.TimeUnit
 
 private const val DEBUG = false
 
@@ -23,19 +29,38 @@ class TrelloWidget : Application() {
         if (DEBUG) StrictMode.enableDefaults()
         super.onCreate()
         appModule = AppModule(this)
-        Executors.callable { scheduleAlarm(this@TrelloWidget) }.call()
+
+        cancelOldAlarm(this)
+
+        scheduleWidgetUpdateWork(this)
     }
 
-    fun scheduleAlarm(context: Context) {
+    private fun cancelOldAlarm(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(context, AlarmReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
+        )
+        alarmManager.cancel(pendingIntent)
+    }
+
+    private fun scheduleWidgetUpdateWork(context: Context) {
         val interval = context.getInterval().toLong()
-        alarmManager(context).setInexactRepeating(
-                AlarmManager.ELAPSED_REALTIME, interval, interval, pendingIntent(context))
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val workRequest = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
+            interval, TimeUnit.MILLISECONDS
+        )
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "WidgetUpdateWork",
+            ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
     }
-
-    fun alarmManager(context: Context) = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-    fun pendingIntent(context: Context): PendingIntent =
-            PendingIntent.getBroadcast(context, 0,
-                    Intent(context, AlarmReceiver::class.java),
-                    PendingIntent.FLAG_IMMUTABLE)
 }
