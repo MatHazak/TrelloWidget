@@ -14,6 +14,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction()
+                .replace(R.id.pref_fragment, GeneralPreferenceFragment())
+                .commit()
             val userToken = preferences().getString(TOKEN_PREF_KEY, "")
             replaceFragment(if (userToken.isNullOrEmpty()) LoginFragment() else LoggedInFragment())
         }
