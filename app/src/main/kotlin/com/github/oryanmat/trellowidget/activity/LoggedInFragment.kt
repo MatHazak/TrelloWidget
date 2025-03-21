@@ -1,5 +1,9 @@
 package com.github.oryanmat.trellowidget.activity
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,7 +18,6 @@ import com.github.oryanmat.trellowidget.data.remote.Error
 import com.github.oryanmat.trellowidget.data.remote.Success
 import com.github.oryanmat.trellowidget.databinding.FragmentLoggedInBinding
 import com.github.oryanmat.trellowidget.util.Constants.DELAY
-import com.github.oryanmat.trellowidget.util.Constants.MAX_LOGIN_FAIL
 import com.github.oryanmat.trellowidget.util.Constants.T_WIDGET_TAG
 import com.github.oryanmat.trellowidget.viewmodels.LoggedInViewModel
 import com.github.oryanmat.trellowidget.viewmodels.viewModelFactory
@@ -39,29 +42,51 @@ class LoggedInFragment : Fragment() {
     ): View {
         _binding = FragmentLoggedInBinding.inflate(inflater, container, false)
 
+        viewModel.retrieveUser(requireContext())
+
         viewModel.liveUser.observe(viewLifecycleOwner) { response ->
             when (response) {
                 is Success -> {
-                    viewModel.loggedInUser = response.data
+                    viewModel.storeUser(requireContext(), response.data)
                     setUser()
                 }
+
                 is Error -> onErrorResponse(response.error)
             }
         }
-        if (viewModel.loggedInUser != null) {
-            setUser()
-        } else
-            viewModel.tryLogin()
+
+        setUser()
+
+        checkInternetAndValidateToken()
+
         return binding.root
+    }
+
+    private fun checkInternetAndValidateToken() {
+        val connectivityManager =
+            requireContext().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val isConnected = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = connectivityManager.activeNetwork
+            val networkCapabilities = connectivityManager.getNetworkCapabilities(network)
+            networkCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        } else {
+            @Suppress("DEPRECATION")
+            val activeNetworkInfo = connectivityManager.activeNetworkInfo
+            @Suppress("DEPRECATION")
+            activeNetworkInfo?.isConnected == true
+        }
+        if (isConnected) {
+            viewModel.tryFetchUser()
+        }
     }
 
     private fun onErrorResponse(error: String) {
         Log.e(T_WIDGET_TAG, error)
 
-        if (viewModel.loginAttempts >= MAX_LOGIN_FAIL)
+        if (error.contains("401 Unauthorized"))
             logout(error)
         else
-            Timer().schedule(DELAY) { viewModel.tryLogin() }
+            Timer().schedule(DELAY) { viewModel.tryFetchUser() }
     }
 
     private fun logout(error: String) {
@@ -73,7 +98,12 @@ class LoggedInFragment : Fragment() {
     }
 
     private fun setUser() {
-        binding.signedText.text = getString(R.string.singed).format(viewModel.loggedInUser)
+        val signedText = if (viewModel.loggedInUser == null) {
+            getString(R.string.default_signed_text)
+        } else {
+            getString(R.string.singed).format(viewModel.loggedInUser)
+        }
+        binding.signedText.text = signedText
         binding.loadingPanel.visibility = View.GONE
         binding.signedPanel.visibility = View.VISIBLE
     }

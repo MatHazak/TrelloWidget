@@ -7,7 +7,6 @@ object Constants {
     const val T_WIDGET_TAG = "TWidget"
 
     // Login Config Constants
-    const val MAX_LOGIN_FAIL = 3
     private const val DELAY_IN_SEC = 1L
     val DELAY = TimeUnit.SECONDS.toMillis(DELAY_IN_SEC)
 
@@ -29,6 +28,8 @@ object Constants {
     // Preferences Constants
     const val INTERNAL_PREFS = "com.oryanmat.trellowidget.prefs"
     const val TOKEN_PREF_KEY = "com.oryanmat.trellowidget.usertoken"
+    const val USERNAME_PREF_KEY = "com.oryanmat.trellowidget.userName"
+    const val FULL_NAME_PREF_KEY = "com.oryanmat.trellowidget.fullName"
     const val LIST_KEY = ""
     const val BOARD_KEY = ".board"
 

@@ -5,7 +5,9 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.github.oryanmat.trellowidget.R
+import com.github.oryanmat.trellowidget.util.Constants.FULL_NAME_PREF_KEY
 import com.github.oryanmat.trellowidget.util.Constants.TOKEN_PREF_KEY
+import com.github.oryanmat.trellowidget.util.Constants.USERNAME_PREF_KEY
 import com.github.oryanmat.trellowidget.util.preferences
 
 class MainActivity : AppCompatActivity() {
@@ -40,8 +42,10 @@ class MainActivity : AppCompatActivity() {
     @JvmOverloads
     fun logout(@Suppress("UNUSED_PARAMETER") view: View? = null) {
         preferences().edit()
-                .remove(TOKEN_PREF_KEY)
-                .apply()
+            .remove(TOKEN_PREF_KEY)
+            .remove(USERNAME_PREF_KEY)
+            .remove(FULL_NAME_PREF_KEY)
+            .apply()
 
         replaceFragment(LoginFragment())
     }
