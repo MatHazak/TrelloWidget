@@ -42,4 +42,5 @@
     <string name="login_fail">Login failed multiple times. Logging you out: %s</string>
     <string name="board_load_fail">Could not load board data.\nPlease make sure you are logged in and try again.</string>
 
+    <string name="pref_migration_status_key">migration_status</string>
 </resources>

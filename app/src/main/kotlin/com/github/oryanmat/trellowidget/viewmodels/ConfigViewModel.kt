@@ -6,13 +6,13 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.oryanmat.trellowidget.data.TrelloWidgetRepository
+import com.github.oryanmat.trellowidget.data.database.WidgetEntity
 import com.github.oryanmat.trellowidget.data.model.Board
-import com.github.oryanmat.trellowidget.data.model.BoardList
 import com.github.oryanmat.trellowidget.data.remote.ApiResponse
-import com.github.oryanmat.trellowidget.util.getBoard
-import com.github.oryanmat.trellowidget.util.getList
-import com.github.oryanmat.trellowidget.util.putConfigInfo
 import com.github.oryanmat.trellowidget.widget.updateWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class ConfigViewModel(
@@ -20,23 +20,34 @@ class ConfigViewModel(
     private val appContext: Context
 ) : ViewModel() {
     var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-    var board: Board = Board()
-    var list: BoardList = BoardList()
+    var boardName: String = ""
+    var boardUrl: String = ""
+    var listName: String = ""
+    var listId: String = ""
 
     val boards: LiveData<ApiResponse<List<Board>>> = repository.boards
 
     fun getBoards() = viewModelScope.launch {
-        repository.getBoards()
+        repository.fetchBoards()
     }
 
     fun loadPresentConfig() {
-        board = appContext.getBoard(appWidgetId)
-        list = appContext.getList(appWidgetId)
+        CoroutineScope(Dispatchers.IO).launch {
+            val widget = repository.getWidget(appWidgetId)
+            if (widget != null) {
+                boardName = widget.boardName
+                listName = widget.boardListName
+            }
+        }
     }
 
-    fun isConfigInvalid(): Boolean = board.id.isEmpty() || list.id.isEmpty()
+    fun isConfigInvalid(): Boolean = boardName.isEmpty() || listName.isEmpty()
+
     fun updateConfig() {
-        appContext.putConfigInfo(appWidgetId, board, list)
-        appContext.updateWidget(appWidgetId)
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            repository.storeWidget(WidgetEntity(appWidgetId, boardName, boardUrl, listName, listId))
+            repository.fetchAndStoreBoardList(listId)
+            appContext.updateWidget(appWidgetId)
+        }
     }
 }

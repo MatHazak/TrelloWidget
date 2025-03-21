@@ -17,20 +17,15 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.IdRes
 import com.github.oryanmat.trellowidget.R
 import com.github.oryanmat.trellowidget.TrelloWidget
-import com.github.oryanmat.trellowidget.data.model.BoardList
 import com.github.oryanmat.trellowidget.data.model.Card
 import com.github.oryanmat.trellowidget.data.model.Label
-import com.github.oryanmat.trellowidget.data.remote.Error
-import com.github.oryanmat.trellowidget.data.remote.Success
 import com.github.oryanmat.trellowidget.util.Constants.T_WIDGET_TAG
 import com.github.oryanmat.trellowidget.util.DateTimeUtil
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setImage
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setImageViewColor
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setTextView
 import com.github.oryanmat.trellowidget.util.color.colors
-import com.github.oryanmat.trellowidget.util.color.dim
 import com.github.oryanmat.trellowidget.util.getCardForegroundColor
-import com.github.oryanmat.trellowidget.util.getList
 
 class CardRemoteViewFactory(
     private val context: Context,
@@ -38,24 +33,30 @@ class CardRemoteViewFactory(
 ) : RemoteViewsService.RemoteViewsFactory {
 
     private var cards: List<Card> = ArrayList()
+
     @ColorInt
     private var color = 0
 
     override fun onDataSetChanged() {
-        var list = context.getList(appWidgetId)
-
-        val apiResponse = TrelloWidget.appModule.trelloWidgetRepository.getBoardList(list.id)
-        when (apiResponse) {
-            is Success -> list = apiResponse.data
-            is Error -> Log.e(T_WIDGET_TAG, apiResponse.error)
+        val repository = TrelloWidget.appModule.trelloWidgetRepository
+        val widget = repository.getWidget(appWidgetId)
+        if (widget == null) {
+            Log.e(
+                T_WIDGET_TAG,
+                "Failed to update widget cards: No widget found for ID $appWidgetId"
+            )
+            return
+        }
+        val boardList = repository.getBoardList(widget.boardListId)
+        if (boardList == null) {
+            Log.e(
+                T_WIDGET_TAG,
+                "Failed to update widget: No board found for ID ${widget.boardListId}"
+            )
+            return
         }
         color = context.getCardForegroundColor()
-
-        if (BoardList.ERROR != list.id) {
-            cards = list.cards
-        } else {
-            color = color.dim()
-        }
+        cards = boardList.cards
     }
 
     override fun getViewAt(position: Int): RemoteViews {
@@ -104,7 +105,7 @@ class CardRemoteViewFactory(
     }
 
     private fun setDueDate(views: RemoteViews, card: Card) {
-        val visible = card.badges.due != null
+        val visible = !card.badges.due.isNullOrEmpty()
         val text = if (visible) DateTimeUtil.parseDate(card.badges.due!!) else ""
         setBadge(views, R.id.due, R.id.due_string,
                 R.drawable.ic_access_time_white_24dp, text, visible)
@@ -159,10 +160,11 @@ class CardRemoteViewFactory(
         views.addView(R.id.labels_layout, view)
     }
 
-    private fun setDivider(views: RemoteViews) = setImageViewColor(views, R.id.list_item_divider, color)
+    private fun setDivider(views: RemoteViews) =
+        setImageViewColor(views, R.id.list_item_divider, color)
 
     private fun setVisibility(views: RemoteViews, @IdRes view: Int, visible: Boolean) =
-            views.setViewVisibility(view, if (visible) View.VISIBLE else View.GONE)
+        views.setViewVisibility(view, if (visible) View.VISIBLE else View.GONE)
 
     override fun onCreate() {
     }

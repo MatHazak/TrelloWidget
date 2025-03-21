@@ -9,27 +9,30 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.ColorInt
 import com.github.oryanmat.trellowidget.R
+import com.github.oryanmat.trellowidget.TrelloWidget
 import com.github.oryanmat.trellowidget.activity.ConfigActivity
-import com.github.oryanmat.trellowidget.data.model.Board
 import com.github.oryanmat.trellowidget.util.Constants.TRELLO_PACKAGE_NAME
 import com.github.oryanmat.trellowidget.util.Constants.TRELLO_URL
+import com.github.oryanmat.trellowidget.util.Constants.T_WIDGET_TAG
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setBackgroundColor
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setImage
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setImageViewColor
 import com.github.oryanmat.trellowidget.util.RemoteViewsUtil.setTextView
 import com.github.oryanmat.trellowidget.util.color.lightDim
 import com.github.oryanmat.trellowidget.util.displayBoardName
-import com.github.oryanmat.trellowidget.util.getBoard
 import com.github.oryanmat.trellowidget.util.getCardBackgroundColor
 import com.github.oryanmat.trellowidget.util.getCardForegroundColor
-import com.github.oryanmat.trellowidget.util.getList
 import com.github.oryanmat.trellowidget.util.getTitleBackgroundColor
 import com.github.oryanmat.trellowidget.util.getTitleForegroundColor
 import com.github.oryanmat.trellowidget.util.isTitleEnabled
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private const val REFRESH_ACTION = "com.github.oryanmat.trellowidget.refreshAction"
 private const val WIDGET_ID = "com.github.oryanmat.trellowidget.widgetId"
@@ -37,19 +40,50 @@ private const val WIDGET_ID = "com.github.oryanmat.trellowidget.widgetId"
 
 class TrelloWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { updateAppWidget(context, appWidgetManager, it) }
+        appWidgetIds.forEach { widgetId ->
+            updateAppWidget(context, appWidgetManager, widgetId)
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
 
         when (intent.action) {
-            REFRESH_ACTION -> context.updateWidgetData(intent.getIntExtra(WIDGET_ID, 0))
+            REFRESH_ACTION -> {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val widgetId = intent.getIntExtra(WIDGET_ID, 0)
+                    val repository = TrelloWidget.appModule.trelloWidgetRepository
+                    val widgetEntity = repository.getWidget(widgetId)
+                    if (widgetEntity == null) {
+                        Log.e(T_WIDGET_TAG, "Can't find widget with ID $widgetId.")
+                        return@launch
+                    }
+                    val successFetch = repository.fetchAndStoreBoardList(widgetEntity.boardListId)
+                    if (!successFetch) {
+                        Log.e(
+                            T_WIDGET_TAG,
+                            "widget for ${widgetEntity.boardName}/${widgetEntity.boardListName} failed to fetch list."
+                        )
+                        return@launch
+                    }
+                    context.updateWidgetCards(widgetEntity.widgetId)
+                }
+            }
+        }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+
+        val repository = TrelloWidget.appModule.trelloWidgetRepository
+        CoroutineScope(Dispatchers.IO).launch {
+            for (widgetId in appWidgetIds) {
+                repository.deleteWidget(widgetId)
+            }
         }
     }
 
     private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-        // TODO: We should update both the BoardList and Board on a refresh
         val views = RemoteViews(context.packageName, R.layout.trello_widget)
         updateTitleBar(appWidgetId, context, views)
         updateCardList(appWidgetId, context, views)
@@ -57,17 +91,41 @@ class TrelloWidgetProvider : AppWidgetProvider() {
     }
 
     private fun updateTitleBar(appWidgetId: Int, context: Context, views: RemoteViews) {
-        val board = context.getBoard(appWidgetId)
-        val list = context.getList(appWidgetId)
         @ColorInt val foregroundColor = context.getTitleForegroundColor()
+        val repository = TrelloWidget.appModule.trelloWidgetRepository
 
+        CoroutineScope(Dispatchers.IO).launch {
+            val widget = repository.getWidget(appWidgetId)
+            if (widget == null) {
+                Log.e(
+                    T_WIDGET_TAG,
+                    "Failed to update widget's title bar: No widget found for ID $appWidgetId."
+                )
+                return@launch
+            }
+            setTextView(
+                context,
+                views,
+                R.id.board_name,
+                widget.boardName + " / ",
+                foregroundColor,
+                R.dimen.widget_title_text
+            )
+            setTextView(
+                context,
+                views,
+                R.id.list_name,
+                widget.boardListName,
+                foregroundColor,
+                R.dimen.widget_title_text
+            )
+            views.setOnClickPendingIntent(R.id.list_title, getTitleIntent(context, widget.boardUrl))
+        }
         setBackgroundColor(views, R.id.title_bar, context.getTitleBackgroundColor())
-        views.setViewVisibility(R.id.board_name,
-                if (context.displayBoardName()) View.VISIBLE else View.GONE)
-        setTextView(context, views, R.id.board_name, board.name + " / ", foregroundColor, R.dimen.widget_title_text)
-        setTextView(context, views, R.id.list_name, list.name, foregroundColor, R.dimen.widget_title_text)
-        views.setOnClickPendingIntent(R.id.list_title, getTitleIntent(context, board))
-
+        views.setViewVisibility(
+            R.id.board_name,
+            if (context.displayBoardName()) View.VISIBLE else View.GONE
+        )
         setImage(context, views, R.id.refreshButt, R.drawable.ic_refresh_white_24dp)
         setImage(context, views, R.id.configButt, R.drawable.ic_settings_white_24dp)
         setImageViewColor(views, R.id.refreshButt, foregroundColor.lightDim())
@@ -113,13 +171,13 @@ class TrelloWidgetProvider : AppWidgetProvider() {
         return PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW), FLAG_MUTABLE)
     }
 
-    private fun getTitleIntent(context: Context, board: Board): PendingIntent {
-        val intent = if (context.isTitleEnabled()) getBoardIntent(context, board) else Intent()
+    private fun getTitleIntent(context: Context, boardUrl: String): PendingIntent {
+        val intent = if (context.isTitleEnabled()) getBoardIntent(context, boardUrl) else Intent()
         return PendingIntent.getActivity(context, 0, intent, FLAG_IMMUTABLE)
     }
 
-    private fun getBoardIntent(context: Context, board: Board) = if (board.url.isNotEmpty()) {
-        Intent(Intent.ACTION_VIEW, Uri.parse(board.url))
+    private fun getBoardIntent(context: Context, boardUrl: String) = if (boardUrl.isNotEmpty()) {
+        Intent(Intent.ACTION_VIEW, Uri.parse(boardUrl))
     } else {
         getTrelloIntent(context)
     }

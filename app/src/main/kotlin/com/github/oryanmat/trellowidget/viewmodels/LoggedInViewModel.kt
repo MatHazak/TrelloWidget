@@ -16,7 +16,7 @@ class LoggedInViewModel(private val repository: TrelloWidgetRepository) : ViewMo
     fun tryLogin() {
         loginAttempts++
         viewModelScope.launch {
-            repository.getUser()
+            repository.fetchUser()
         }
     }
 }

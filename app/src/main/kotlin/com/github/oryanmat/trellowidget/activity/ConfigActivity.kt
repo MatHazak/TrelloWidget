@@ -71,7 +71,8 @@ class ConfigActivity : AppCompatActivity(), OnItemSelectedAdapter {
     private fun onSuccessResponse(boards: List<Board>) {
         binding.progressBar.visibility = View.GONE
         binding.content.visibility = View.VISIBLE
-        setSpinner(binding.boardSpinner, boards, this, boards.indexOf(viewModel.board))
+        val index = boards.indexOfFirst { board: Board -> board.name == viewModel.boardName }
+        setSpinner(binding.boardSpinner, boards, this, index)
     }
 
     private fun onErrorResponse(error: String) {
@@ -85,15 +86,21 @@ class ConfigActivity : AppCompatActivity(), OnItemSelectedAdapter {
 
     override fun onItemSelected(parent: AdapterView<*>, view: View, position: Int, id: Long) {
         when (parent) {
-            binding.boardSpinner -> boardSelected(parent, position)
-            binding.listSpinner -> viewModel.list = parent.getItemAtPosition(position) as BoardList
-        }
-    }
+            binding.boardSpinner -> {
+                val board = parent.getItemAtPosition(position) as Board
+                viewModel.boardName = board.name
+                viewModel.boardUrl = board.url
+                val index =
+                    board.lists.indexOfFirst { boardList: BoardList -> boardList.name == viewModel.listName }
+                setSpinner(binding.listSpinner, board.lists, this, index)
+            }
 
-    private fun boardSelected(spinner: AdapterView<*>, position: Int) {
-        val board = spinner.getItemAtPosition(position) as Board
-        viewModel.board = board
-        setSpinner(binding.listSpinner, board.lists, this, board.lists.indexOf(viewModel.list))
+            binding.listSpinner -> {
+                val list = parent.getItemAtPosition(position) as BoardList
+                viewModel.listName = list.name
+                viewModel.listId = list.id
+            }
+        }
     }
 
     private fun <T> setSpinner(

@@ -5,6 +5,15 @@ import androidx.annotation.ColorInt
 import androidx.preference.PreferenceManager
 import com.github.oryanmat.trellowidget.R
 
+internal fun Context.isUserPreferencesSet(): Boolean {
+    val prefs = sharedPreferences()
+    return prefs.contains(getString(R.string.pref_text_size_key))
+}
+
+internal fun Context.getMigrationStatus() = sharedPreferences().getBoolean(
+    getString(R.string.pref_migration_status_key),
+    false)
+
 internal fun Context.getPrefTextScale(): Float {
     val def: String = getString(R.string.pref_text_size_default)
     val string: String = sharedPreferences().getString(

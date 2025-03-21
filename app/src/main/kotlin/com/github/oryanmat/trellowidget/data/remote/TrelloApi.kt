@@ -19,6 +19,10 @@ import com.github.oryanmat.trellowidget.util.Constants.TOKEN_PREF_KEY
 import com.github.oryanmat.trellowidget.util.Constants.USER_PATH
 import com.github.oryanmat.trellowidget.util.Json
 import com.github.oryanmat.trellowidget.util.preferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import java.lang.reflect.Type
 
 class TrelloApi(appContext: Context) {
@@ -30,19 +34,19 @@ class TrelloApi(appContext: Context) {
     private fun buildURL(query: String) =
         "$BASE_URL$API_VERSION$query$KEY&${preferences.getString(TOKEN_PREF_KEY, "")}"
 
-    fun getCards(id: String): ApiResponse<BoardList> {
+    suspend fun getCards(id: String): ApiResponse<BoardList> = withContext(Dispatchers.IO) {
         val url = buildURL(LIST_CARDS_PATH.format(id))
-        return getSynchronously(url, BoardList::class.java, BoardList.error())
+        getSynchronously(url, BoardList::class.java, BoardList.error())
     }
 
-    fun getUser(listener: (ApiResponse<User>) -> Unit) {
+    suspend fun getUser(): ApiResponse<User> {
         val url = buildURL(USER_PATH)
-        getAsynchronously(url, User::class.java, User(), listener)
+        return getAsynchronously(url, User::class.java, User())
     }
 
-    fun getBoards(listener: (ApiResponse<List<Board>>) -> Unit) {
+    suspend fun getBoards(): ApiResponse<List<Board>> {
         val url = buildURL(BOARDS_PATH)
-        getAsynchronously(url, LIST_OF_BOARDS_TYPE, emptyList(), listener)
+        return getAsynchronously(url, LIST_OF_BOARDS_TYPE, emptyList())
     }
 
     private fun <T> getSynchronously(url: String, type: Type, defaultValue: T): ApiResponse<T> {
@@ -60,25 +64,24 @@ class TrelloApi(appContext: Context) {
         }
     }
 
-    private fun <T> getAsynchronously(
+    private suspend fun <T> getAsynchronously(
         url: String,
         type: Type,
         defaultValue: T,
-        listener: (ApiResponse<T>) -> Unit
-    ) {
+    ): ApiResponse<T> = suspendCancellableCoroutine { cont ->
         val request = StringRequest(
             Request.Method.GET,
             url,
             { response ->
                 val data = Json.tryParseJson(response, type, defaultValue)
-                val dataStatus = Success(data)
-                listener(dataStatus)
+                cont.resume(Success(data))
             },
             { error ->
-                val dataStatus = Error<T>(error.toString())
-                listener(dataStatus)
+                cont.resume(Error("Network error: ${error.message}"))
             }
         )
         requestQueue.add(request)
+
+        cont.invokeOnCancellation { request.cancel() }
     }
 }
