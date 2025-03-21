@@ -33,6 +33,7 @@ import com.github.oryanmat.trellowidget.util.isTitleEnabled
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val REFRESH_ACTION = "com.github.oryanmat.trellowidget.refreshAction"
 private const val WIDGET_ID = "com.github.oryanmat.trellowidget.widgetId"
@@ -85,55 +86,42 @@ class TrelloWidgetProvider : AppWidgetProvider() {
 
     private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.trello_widget)
-        updateTitleBar(appWidgetId, context, views)
-        updateCardList(appWidgetId, context, views)
-        appWidgetManager.updateAppWidget(appWidgetId, views)
+        updateTitleBar(appWidgetId, context, views) {
+            updateCardList(appWidgetId, context, views)
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
     }
 
-    private fun updateTitleBar(appWidgetId: Int, context: Context, views: RemoteViews) {
+    private fun updateTitleBar(appWidgetId: Int, context: Context, views: RemoteViews, onComplete: () -> Unit) {
         @ColorInt val foregroundColor = context.getTitleForegroundColor()
         val repository = TrelloWidget.appModule.trelloWidgetRepository
 
         CoroutineScope(Dispatchers.IO).launch {
             val widget = repository.getWidget(appWidgetId)
             if (widget == null) {
-                Log.e(
-                    T_WIDGET_TAG,
-                    "Failed to update widget's title bar: No widget found for ID $appWidgetId."
-                )
+                Log.e(T_WIDGET_TAG, "Failed to update widget's title bar: No widget found for ID $appWidgetId.")
+                withContext(Dispatchers.Main) { onComplete() }
                 return@launch
             }
-            setTextView(
-                context,
-                views,
-                R.id.board_name,
-                widget.boardName + " / ",
-                foregroundColor,
-                R.dimen.widget_title_text
-            )
-            setTextView(
-                context,
-                views,
-                R.id.list_name,
-                widget.boardListName,
-                foregroundColor,
-                R.dimen.widget_title_text
-            )
-            views.setOnClickPendingIntent(R.id.list_title, getTitleIntent(context, widget.boardUrl))
-        }
-        setBackgroundColor(views, R.id.title_bar, context.getTitleBackgroundColor())
-        views.setViewVisibility(
-            R.id.board_name,
-            if (context.displayBoardName()) View.VISIBLE else View.GONE
-        )
-        setImage(context, views, R.id.refreshButt, R.drawable.ic_refresh_white_24dp)
-        setImage(context, views, R.id.configButt, R.drawable.ic_settings_white_24dp)
-        setImageViewColor(views, R.id.refreshButt, foregroundColor.lightDim())
-        setImageViewColor(views, R.id.configButt, foregroundColor.lightDim())
-        views.setOnClickPendingIntent(R.id.refreshButt, getRefreshPendingIntent(context, appWidgetId))
-        views.setOnClickPendingIntent(R.id.configButt, getReconfigPendingIntent(context, appWidgetId))
 
-        setImageViewColor(views, R.id.divider, foregroundColor)
+            withContext(Dispatchers.Main) {
+                setTextView(context, views, R.id.board_name, widget.boardName + " / ", foregroundColor, R.dimen.widget_title_text)
+                setTextView(context, views, R.id.list_name, widget.boardListName, foregroundColor, R.dimen.widget_title_text)
+                views.setOnClickPendingIntent(R.id.list_title, getTitleIntent(context, widget.boardUrl))
+                setBackgroundColor(views, R.id.title_bar, context.getTitleBackgroundColor())
+                views.setViewVisibility(R.id.board_name,
+                    if (context.displayBoardName()) View.VISIBLE else View.GONE
+                )
+                setImage(context, views, R.id.refreshButt, R.drawable.ic_refresh_white_24dp)
+                setImage(context, views, R.id.configButt, R.drawable.ic_settings_white_24dp)
+                setImageViewColor(views, R.id.refreshButt, foregroundColor.lightDim())
+                setImageViewColor(views, R.id.configButt, foregroundColor.lightDim())
+                views.setOnClickPendingIntent(R.id.refreshButt, getRefreshPendingIntent(context, appWidgetId))
+                views.setOnClickPendingIntent(R.id.configButt, getReconfigPendingIntent(context, appWidgetId))
+                setImageViewColor(views, R.id.divider, foregroundColor)
+                onComplete()
+            }
+        }
     }
 
     private fun updateCardList(appWidgetId: Int, context: Context, views: RemoteViews) {

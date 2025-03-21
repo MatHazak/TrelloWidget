@@ -40,6 +40,7 @@ class GeneralPreferenceFragment : PreferenceFragmentCompat() {
         listener.onSharedPreferenceChanged(preferences, getString(R.string.pref_title_use_unique_color_key))
         listener.onSharedPreferenceChanged(preferences, getString(R.string.pref_update_interval_key))
         listener.onSharedPreferenceChanged(preferences, getString(R.string.pref_display_board_name_key))
+        listener.onSharedPreferenceChanged(preferences, getString(R.string.pref_title_onclick_key))
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -123,6 +124,12 @@ class GeneralPreferenceFragment : PreferenceFragmentCompat() {
                 val preference = findPreference<SwitchPreference>(key)
                 preference?.let {
                     it.summary = getString(R.string.pref_display_board_name_desc)
+                }
+            }
+            getString(R.string.pref_title_onclick_key) -> {
+                val preference = findPreference<SwitchPreference>(key)
+                preference?.let {
+                    it.summary = getString(R.string.pref_title_onclick_desc)
                 }
             }
         }
